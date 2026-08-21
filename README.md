@@ -1,73 +1,50 @@
-# Smart Manufacturing Scheduler
+# 异构并行机生产排程优化
 
-A constraint optimization based production scheduling system for intelligent manufacturing.
+面向带释放时间、机器兼容性、机器相关加工时长、机器最早可用时间和到达后 24 小时硬截止的异构并行机排程案例研究。
 
-## Overview
+## 建模主线
 
-This project focuses on production scheduling problems with:
+- 每个订单选择一台兼容机器，或外发；
+- 厂内订单满足释放时间、机器可用时间、硬截止与同机不重叠；
+- 目标按严格词典序优化：第一层最少外发，第二层最多按批次交期完成，第三层最少总逾期与等待；
+- 多规则构造启发式提供可行解，CP-SAT 用逐阶段约束保持目标优先级；
+- 独立校验器不依赖求解器变量，重新检查每一条排程约束。
 
-- Multiple jobs
-- Heterogeneous machines
-- Process precedence constraints
-- Machine capacity constraints
-- Delivery deadline requirements
+## 可复现实例
 
-The system combines mathematical optimization and heuristic search to generate feasible and efficient production plans.
+~~~bash
+python -m pip install -r requirements.txt
+python scripts/run_demo.py --solver heuristic
+python scripts/run_demo.py --solver cp-sat
+python -m pytest -q
+~~~
 
-## Architecture
+仓库内的合成实例可直接运行，不需要原始业务表格。CP-SAT 输出分别报告各阶段状态和 gap；只有某阶段状态为 OPTIMAL 时，才称该阶段已证明最优。
 
-```
-Production Data
-      |
-      v
-Model Construction
-      |
-      v
-CP-SAT Solver
-      |
-      v
-Schedule Optimization
-      |
-      v
-Evaluation & Visualization
-```
+## 全规模离线实验（聚合口径）
 
-## Methods
+| 指标 | 未计机器可用时间 | 计入机器可用时间 |
+| --- | ---: | ---: |
+| 订单 | 887 | 887 |
+| 设备 | 145 | 145 |
+| 结构性必须外发 | 5 | 5 |
+| 按批次交期完成 | 846 | 845 |
+| 厂内计划独立校验 | 882/882 通过 | 882/882 通过 |
 
-### Constraint Programming
+上述结果来自一次离线案例实验，不代表企业上线。原题、原始 Excel 与答题文档不在仓库中；仓库仅公开独立重构代码、合成实例和聚合结果。
 
-- OR-Tools CP-SAT
-- Interval Variables
-- NoOverlap Constraints
-- Precedence Constraints
+## 目录
 
-### Optimization Objectives
+~~~text
+src/heterogeneous_scheduler/  数据结构、启发式、CP-SAT、独立校验
+research/                     全规模启发式与小规模 CP-SAT 对照
+examples/                     合成实例
+scripts/run_demo.py           可复制运行入口
+tests/                        约束与目标测试
+docs/                         数学模型和 v8 修正说明
+reports/                      聚合实验口径
+~~~
 
-- Makespan minimization
-- Tardiness reduction
-- Resource utilization improvement
+## 边界
 
-## Project Structure
-
-```
-smart-manufacturing-scheduler
-|
-├── model
-│   ├── variables.py
-│   ├── constraints.py
-│   └── objective.py
-|
-├── solver
-│   ├── cp_sat_solver.py
-│   └── heuristic.py
-|
-├── benchmark
-|
-├── visualization
-|
-└── requirements.txt
-```
-
-## Learning Goals
-
-This repository demonstrates the workflow of converting manufacturing requirements into optimization models and solving complex scheduling problems with modern operations research methods.
+这是排程案例研究，不声称企业生产部署。启发式结果不是全局最优证明，FEASIBLE 也不等于 OPTIMAL。完整口径见 [数学模型](docs/model.md) 与 [v8 模型审计](docs/v8_model_review.md)。

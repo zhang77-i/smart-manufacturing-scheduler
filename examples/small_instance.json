@@ -1,0 +1,15 @@
+{
+  "machines": [
+    {"id": "M1", "available": 0},
+    {"id": "M2", "available": 2},
+    {"id": "M3", "available": 0}
+  ],
+  "orders": [
+    {"id": "O1", "release": 0, "due": 4, "hard_due": 8, "processing": {"M1": 3, "M2": 5}},
+    {"id": "O2", "release": 0, "due": 5, "hard_due": 9, "processing": {"M1": 4, "M3": 3}},
+    {"id": "O3", "release": 1, "due": 6, "hard_due": 10, "processing": {"M2": 3, "M3": 4}},
+    {"id": "O4", "release": 2, "due": 7, "hard_due": 9, "processing": {"M1": 4}},
+    {"id": "O5", "release": 3, "due": 8, "hard_due": 11, "processing": {"M2": 4, "M3": 2}},
+    {"id": "O6", "release": 0, "due": 4, "hard_due": 5, "processing": {"M2": 6}}
+  ]
+}

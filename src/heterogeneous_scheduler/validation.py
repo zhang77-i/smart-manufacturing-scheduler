@@ -48,4 +48,20 @@ def validate_schedule(instance: Instance, schedule: Schedule) -> list[str]:
                 errors.append(
                     f"{machine_id}: overlap {previous[2]} / {current[2]}"
                 )
+    for successor in instance.orders:
+        successor_assignment = assignments.get(successor.id)
+        if successor_assignment is None or successor_assignment.outsourced:
+            continue
+        for predecessor_id in successor.predecessors:
+            predecessor_assignment = assignments.get(predecessor_id)
+            if predecessor_assignment is None or predecessor_assignment.outsourced:
+                continue
+            if (
+                predecessor_assignment.end is None
+                or successor_assignment.start is None
+                or successor_assignment.start < predecessor_assignment.end
+            ):
+                errors.append(
+                    f"{predecessor_id} -> {successor.id}: precedence violated"
+                )
     return errors

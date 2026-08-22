@@ -31,13 +31,54 @@ def _priority(order: Order, rule: str) -> tuple[int, int, str]:
     return order.due, order.release, order.id
 
 
+def _topological_priority_order(instance: Instance, rule: str) -> list[Order]:
+    orders = {order.id: order for order in instance.orders}
+    successors: dict[str, list[str]] = {order_id: [] for order_id in orders}
+    indegree = {
+        order.id: len(order.predecessors) for order in instance.orders
+    }
+    for order in instance.orders:
+        for predecessor in order.predecessors:
+            successors[predecessor].append(order.id)
+
+    ready = [
+        orders[order_id]
+        for order_id, degree in indegree.items()
+        if degree == 0
+    ]
+    result: list[Order] = []
+    while ready:
+        current = min(ready, key=lambda order: _priority(order, rule))
+        ready.remove(current)
+        result.append(current)
+        for successor in successors[current.id]:
+            indegree[successor] -= 1
+            if indegree[successor] == 0:
+                ready.append(orders[successor])
+    return result
+
+
 def construct(instance: Instance, rule: str = "edd") -> Schedule:
     machines = instance.machine_map()
     calendars: dict[str, list[tuple[int, int]]] = {
         machine.id: [] for machine in instance.machines
     }
     assignments: list[Assignment] = []
-    for order in sorted(instance.orders, key=lambda item: _priority(item, rule)):
+    assignment_by_order: dict[str, Assignment] = {}
+    for order in _topological_priority_order(instance, rule):
+        internal_predecessor_ends = [
+            assignment_by_order[predecessor].end
+            for predecessor in order.predecessors
+            if not assignment_by_order[predecessor].outsourced
+        ]
+        effective_release = max(
+            [order.release]
+            + [
+                int(end)
+                for end in internal_predecessor_ends
+                if end is not None
+            ]
+        )
         options: list[tuple[tuple[int, int, int, str], str, int, int]] = []
         for machine_id, duration in order.processing.items():
             machine = machines.get(machine_id)
@@ -45,7 +86,7 @@ def construct(instance: Instance, rule: str = "edd") -> Schedule:
                 continue
             start = first_fit(
                 calendars[machine_id],
-                order.release,
+                effective_release,
                 duration,
                 machine.available,
                 order.hard_due,
@@ -61,11 +102,21 @@ def construct(instance: Instance, rule: str = "edd") -> Schedule:
             )
             options.append((score, machine_id, start, end))
         if not options:
-            assignments.append(Assignment(order.id, None, None, None, outsourced=True))
+            assignment = Assignment(
+                order.id,
+                None,
+                None,
+                None,
+                outsourced=True,
+            )
+            assignments.append(assignment)
+            assignment_by_order[order.id] = assignment
             continue
         _, machine_id, start, end = min(options)
         calendars[machine_id].append((start, end))
-        assignments.append(Assignment(order.id, machine_id, start, end))
+        assignment = Assignment(order.id, machine_id, start, end)
+        assignments.append(assignment)
+        assignment_by_order[order.id] = assignment
     return Schedule(assignments)
 
 

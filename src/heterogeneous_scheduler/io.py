@@ -16,6 +16,7 @@ def load_instance(path: str | Path) -> Instance:
             due=int(row["due"]),
             hard_due=int(row["hard_due"]),
             processing={key: int(value) for key, value in row["processing"].items()},
+            predecessors=tuple(row.get("predecessors", ())),
         )
         for row in payload["orders"]
     )

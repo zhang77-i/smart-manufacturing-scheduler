@@ -79,6 +79,19 @@ def _build(instance: Instance) -> _Artifacts:
         model.add(waiting[i] >= start[i] - order.release)
         model.add(waiting[i] == 0).only_enforce_if(outsource[i])
 
+    order_index = {order.id: index for index, order in enumerate(instance.orders)}
+    for successor_index, order in enumerate(instance.orders):
+        for predecessor_id in order.predecessors:
+            predecessor_index = order_index[predecessor_id]
+            model.add(
+                start[successor_index] >= end[predecessor_index]
+            ).only_enforce_if(
+                [
+                    outsource[predecessor_index].Not(),
+                    outsource[successor_index].Not(),
+                ]
+            )
+
     for machine_intervals in intervals.values():
         model.add_no_overlap(machine_intervals)
     return _Artifacts(

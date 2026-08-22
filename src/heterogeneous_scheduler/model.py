@@ -1,0 +1,112 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+
+@dataclass(frozen=True)
+class Machine:
+    id: str
+    available: int = 0
+
+
+@dataclass(frozen=True)
+class Order:
+    id: str
+    release: int
+    due: int
+    hard_due: int
+    processing: dict[str, int]
+    predecessors: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class Instance:
+    machines: tuple[Machine, ...]
+    orders: tuple[Order, ...]
+
+    def __post_init__(self) -> None:
+        order_ids = [order.id for order in self.orders]
+        if len(set(order_ids)) != len(order_ids):
+            raise ValueError("order ids must be unique")
+
+        machine_ids = [machine.id for machine in self.machines]
+        if len(set(machine_ids)) != len(machine_ids):
+            raise ValueError("machine ids must be unique")
+
+        known_orders = set(order_ids)
+        successors: dict[str, list[str]] = {
+            order_id: [] for order_id in order_ids
+        }
+        indegree = {order_id: 0 for order_id in order_ids}
+        for order in self.orders:
+            if len(set(order.predecessors)) != len(order.predecessors):
+                raise ValueError(f"{order.id}: duplicate predecessors")
+            for predecessor in order.predecessors:
+                if predecessor not in known_orders:
+                    raise ValueError(
+                        f"{order.id}: unknown predecessor {predecessor}"
+                    )
+                if predecessor == order.id:
+                    raise ValueError(f"{order.id}: self precedence is invalid")
+                successors[predecessor].append(order.id)
+                indegree[order.id] += 1
+
+        ready = [
+            order_id for order_id, degree in indegree.items() if degree == 0
+        ]
+        visited = 0
+        while ready:
+            current = ready.pop()
+            visited += 1
+            for successor in successors[current]:
+                indegree[successor] -= 1
+                if indegree[successor] == 0:
+                    ready.append(successor)
+        if visited != len(order_ids):
+            raise ValueError("precedence graph contains a cycle")
+
+    def machine_map(self) -> dict[str, Machine]:
+        return {machine.id: machine for machine in self.machines}
+
+
+@dataclass(frozen=True)
+class Assignment:
+    order_id: str
+    machine_id: str | None
+    start: int | None
+    end: int | None
+    outsourced: bool = False
+
+
+@dataclass
+class Schedule:
+    assignments: list[Assignment]
+    stage_status: dict[str, str] = field(default_factory=dict)
+    stage_gap: dict[str, float | None] = field(default_factory=dict)
+
+    def by_order(self) -> dict[str, Assignment]:
+        return {assignment.order_id: assignment for assignment in self.assignments}
+
+    def metrics(self, instance: Instance) -> dict[str, int]:
+        orders = {order.id: order for order in instance.orders}
+        outsourced = sum(a.outsourced for a in self.assignments)
+        on_time = sum(
+            not a.outsourced and a.end is not None and a.end <= orders[a.order_id].due
+            for a in self.assignments
+        )
+        tardiness = sum(
+            max(0, (a.end or 0) - orders[a.order_id].due)
+            for a in self.assignments
+            if not a.outsourced
+        )
+        waiting = sum(
+            max(0, (a.start or 0) - orders[a.order_id].release)
+            for a in self.assignments
+            if not a.outsourced
+        )
+        return {
+            "outsourced": int(outsourced),
+            "on_time": int(on_time),
+            "tardiness": int(tardiness),
+            "waiting": int(waiting),
+        }
